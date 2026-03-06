@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tarot 3-Card Picker + Predictive Reading</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-back-1: #3b0764;
+      --card-back-2: #7e22ce;
+      --card-front: #f8fafc;
+      --text: #e5e7eb;
+      --muted: #cbd5e1;
+      --accent: #f59e0b;
+      --picked: #10b981;
+      --panel: #0b1220;
+      --border: #1f2937;
+      --surface-a: #1e1b4b;
+      --surface-b: #0f172a;
+    }
+    body[data-theme="parchment"] {
+      --bg: #f5e9d2;
+      --surface-a: #f8f1e3;
+      --surface-b: #e8dcc5;
+      --card-back-1: #8b5e34;
+      --card-back-2: #b98a5a;
+      --card-front: #fffdf8;
+      --text: #1f2937;
+      --muted: #475569;
+      --accent: #b45309;
+      --picked: #0f766e;
+      --panel: #fff8ea;
+      --border: #d6c3a5;
+    }
+    body[data-theme="mint"] {
+      --bg: #e8f7f2;
+      --surface-a: #f2fbf7;
+      --surface-b: #d9f2ea;
+      --card-back-1: #0f766e;
+      --card-back-2: #14b8a6;
+      --card-front: #ffffff;
+      --text: #12343b;
+      --muted: #3b5f66;
+      --accent: #0f766e;
+      --picked: #0ea5a4;
+      --panel: #f5fffb;
+      --border: #9fd8cc;
+    }
+    body[data-theme="white"] {
+      --bg: #f8fafc;
+      --surface-a: #ffffff;
+      --surface-b: #eef2f7;
+      --card-back-1: #475569;
+      --card-back-2: #64748b;
+      --card-front: #ffffff;
+      --text: #1e293b;
+      --muted: #475569;
+      --accent: #0ea5e9;
+      --picked: #0d9488;
+      --panel: #ffffff;
+      --border: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 20%, var(--surface-a), var(--surface-b));
+      background-size: 140% 140%;
+      animation: auroraDrift 18s ease-in-out infinite;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -12%;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 18% 22%, rgba(56, 189, 248, 0.09), transparent 45%),
+        radial-gradient(circle at 84% 16%, rgba(251, 191, 36, 0.08), transparent 40%),
+        radial-gradient(circle at 62% 82%, rgba(168, 85, 247, 0.09), transparent 45%);
+      animation: hazeShift 24s linear infinite;
+      z-index: 0;
+    }
+    .wrap {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 20px;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.3rem, 2vw, 2rem);
+    }
+    .sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+    }
+    .status, .prediction {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(11, 18, 32, 0.92), rgba(9, 15, 28, 0.92));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+      backdrop-filter: blur(3px);
+    }
+    .picked-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .controls {
+      margin: 14px 0 18px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+    .control-group {
+      display: grid;
+      gap: 4px;
+      min-width: 140px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .control-group select {
+      appearance: none;
+      background: linear-gradient(180deg, #1f2937, #172030);
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .control-group select:focus {
+      border-color: #94a3b8;
+      box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.2);
+    }
+    button.reset {
+      background: linear-gradient(180deg, #1f2937, #172030);
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 9px 13px;
+      cursor: pointer;
+      transition: transform .16s ease, border-color .2s ease, box-shadow .2s ease;
+    }
+    button.reset:hover {
+      border-color: #94a3b8;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(2, 6, 23, 0.35);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(13, minmax(0, 1fr));
+      gap: 4px;
+      margin-bottom: 6px;
+      padding: 6px;
+      border: 1px solid #283548;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #0a1020, #070c18);
+      box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.05), 0 12px 24px rgba(2, 6, 23, 0.35);
+      transition: all .35s ease;
+    }
+    .grid.picked-only {
+      height: auto;
+      min-height: 140px;
+      overflow: visible;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 0;
+    }
+    .card {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 2 / 3;
+      min-height: 62px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform .14s ease, box-shadow .22s ease, filter .2s ease;
+      user-select: none;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      animation: cardDeal .36s cubic-bezier(.2,.72,.2,1);
+      animation-delay: calc(var(--i, 0) * 8ms);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 16px rgba(0, 0, 0, 0.35);
+      filter: brightness(1.06);
+    }
+    .back, .front {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8px;
+    }
+    .back {
+      color: #f5d0fe;
+      font-weight: 700;
+      background:
+        repeating-linear-gradient(
+          45deg,
+          var(--card-back-1),
+          var(--card-back-1) 8px,
+          var(--card-back-2) 8px,
+          var(--card-back-2) 16px
+        );
+    }
+    .front {
+      color: #111827;
+      background: var(--card-front);
+      transform: translateY(100%);
+      transition: transform .2s ease;
+      font-size: 0.76rem;
+      font-weight: 600;
+      line-height: 1.15;
+      padding: 4px;
+    }
+    .card.picked {
+      border-color: var(--picked);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3), 0 8px 18px rgba(16, 185, 129, 0.22);
+      cursor: default;
+      transform: translateY(-2px);
+      animation: pickedPop .22s ease-out;
+    }
+    .card.picked .front {
+      transform: translateY(0);
+    }
+    .grid.picked-only .card {
+      position: relative;
+      left: auto;
+      top: auto;
+      transform: none;
+      width: 98px;
+      height: 147px;
+      z-index: auto !important;
+    }
+    .grid.picked-only .card:hover {
+      transform: translateY(-4px);
+    }
+    .grid.picked-only .card.picked {
+      transform: none;
+    }
+    .grid.picked-only .card:not(.picked) {
+      display: none;
+    }
+    .pick-no {
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #052e16;
+      background: #6ee7b7;
+      border-radius: 999px;
+      padding: 2px 7px;
+    }
+    .done {
+      color: var(--accent);
+      font-weight: 700;
+      animation: glowPulse 1.4s ease-in-out infinite;
+    }
+    .prediction h2 {
+      margin: 0 0 8px;
+      font-size: 1.1rem;
+    }
+    .prediction.reveal {
+      animation: panelRise .35s cubic-bezier(.16,.84,.24,1);
+    }
+    .prediction p {
+      margin: 8px 0;
+      line-height: 1.4;
+    }
+    .prediction .mini {
+      font-size: 0.93rem;
+      color: var(--muted);
+    }
+    .spread-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .spread-card {
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px;
+      background: #0a1020;
+    }
+    .stage-wrap {
+      display: grid;
+      grid-template-columns: 82px 1fr;
+      gap: 10px;
+      align-items: start;
+      margin-top: 6px;
+    }
+    .stage-tarot {
+      width: 82px;
+      height: 123px;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 6px 14px rgba(2, 6, 23, 0.4);
+      background: var(--card-front);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.15;
+      padding: 6px;
+      color: #111827;
+    }
+    .stage-text {
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .reading-synthesis {
+      border-top: 1px dashed #334155;
+      margin-top: 10px;
+      padding-top: 8px;
+    }
+    @media (max-width: 900px) {
+      .spread-grid {
+        grid-template-columns: 1fr;
+      }
+      .stage-wrap {
+        grid-template-columns: 72px 1fr;
+      }
+      .stage-tarot {
+        width: 72px;
+        height: 108px;
+      }
+    }
+    .spread-card strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #f8fafc;
+    }
+
+
+
+    body[data-theme="mint"] .status,
+    body[data-theme="mint"] .prediction,
+    body[data-theme="mint"] .grid {
+      background: linear-gradient(180deg, rgba(245, 255, 251, 0.98), rgba(233, 250, 244, 0.98));
+      border-color: #9fd8cc;
+      color: #12343b;
+      box-shadow: 0 8px 20px rgba(15, 118, 110, 0.10);
+    }
+    body[data-theme="mint"] .prediction .mini,
+    body[data-theme="mint"] .sub,
+    body[data-theme="mint"] .control-group,
+    body[data-theme="mint"] .forecast,
+    body[data-theme="mint"] .picked-list {
+      color: #3b5f66;
+    }
+    body[data-theme="mint"] .spread-card {
+      background: #ffffff;
+      border-color: #9fd8cc;
+    }
+    body[data-theme="mint"] .spread-card strong {
+      color: #12343b;
+    }
+    body[data-theme="mint"] .control-group select,
+    body[data-theme="mint"] button.reset {
+      background: linear-gradient(180deg, #f4fffb, #e7f8f1);
+      color: #12343b;
+      border-color: #9fd8cc;
+    }
+
+    body[data-theme="parchment"] .status,
+    body[data-theme="parchment"] .prediction {
+      background: linear-gradient(180deg, rgba(255, 248, 234, 0.98), rgba(248, 241, 227, 0.98));
+      border-color: #d6c3a5;
+      color: #1f2937;
+    }
+    body[data-theme="parchment"] .prediction .mini,
+    body[data-theme="parchment"] .sub,
+    body[data-theme="parchment"] .control-group {
+      color: #475569;
+    }
+    body[data-theme="parchment"] .forecast,
+    body[data-theme="parchment"] .picked-list {
+      color: #334155;
+    }
+    body[data-theme="parchment"] .control-group select,
+    body[data-theme="parchment"] button.reset {
+      background: linear-gradient(180deg, #f8f1e3, #efe3ce);
+      color: #1f2937;
+      border-color: #cbb390;
+    }
+    body[data-theme="parchment"] .spread-card {
+      background: #fff8ea;
+      border-color: #d6c3a5;
+    }
+
+    body[data-theme="parchment"] .spread-card strong {
+      color: #1f2937;
+    }
+
+    body[data-theme="parchment"] .stage-tarot {
+      border-color: #cbb390;
+    }
+
+    body[data-theme="white"] .status,
+    body[data-theme="white"] .prediction {
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
+      border-color: #cbd5e1;
+      color: #1e293b;
+    }
+    body[data-theme="white"] .prediction .mini,
+    body[data-theme="white"] .sub,
+    body[data-theme="white"] .control-group {
+      color: #475569;
+    }
+    body[data-theme="white"] .spread-card {
+      background: #ffffff;
+      border-color: #cbd5e1;
+    }
+    body[data-theme="white"] .spread-card strong {
+      color: #0f172a;
+    }
+    body[data-theme="white"] .forecast,
+    body[data-theme="white"] .picked-list {
+      color: #334155;
+    }
+    body[data-theme="white"] .control-group select,
+    body[data-theme="white"] button.reset {
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      color: #1f2937;
+      border-color: #cbd5e1;
+    }
+    .forecast {
+      margin: 10px 0 6px;
+      padding-left: 18px;
+    }
+
+    @keyframes auroraDrift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes hazeShift {
+      0% { transform: translate3d(0,0,0) scale(1); }
+      50% { transform: translate3d(1.5%, -1.5%, 0) scale(1.03); }
+      100% { transform: translate3d(0,0,0) scale(1); }
+    }
+    @keyframes cardDeal {
+      from { opacity: 0; transform: translateY(10px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes pickedPop {
+      0% { transform: translateY(0) scale(0.98); }
+      100% { transform: translateY(-2px) scale(1); }
+    }
+    @keyframes panelRise {
+      0% { opacity: 0; transform: translateY(10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes glowPulse {
+      0%, 100% { text-shadow: 0 0 0 rgba(245, 158, 11, 0); }
+      50% { text-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Tarot 3-Card Picker</h1>
+    <p class="sub">Pick a theme and focus, then draw 3 cards for a staged Past/Present/Future reading with predictive synthesis.</p>
+    <section class="status" aria-live="polite">
+      <p id="count">Chosen: 0 / 3</p>
+      <ol id="pickedList" class="picked-list"></ol>
+      <p id="doneMsg" class="done" hidden>3 cards selected. Predictive reading generated below.</p>
+    </section>
+    <section id="predictionPanel" class="prediction" hidden>
+      <h2>Predictive Reading</h2>
+      <p class="mini">This forecast is interpretive guidance based on card archetypes, suit elements, and spread position (not deterministic certainty).</p>
+      <div id="spreadCards" class="spread-grid"></div>
+      <p id="patternLine"></p>
+      <p id="trajectory"></p>
+      <p id="likelyLine"></p>
+      <p id="riskLine"></p>
+      <ul id="forecastList" class="forecast"></ul>
+      <p id="actionLine"></p>
+      <p id="confidenceLine" class="mini"></p>
+    </section>
+    <div class="controls">
+      <label class="control-group">Theme
+        <select id="themeSelect">
+          <option value="mint">Mint</option>
+          <option value="parchment">Parchment</option>
+          <option value="white">White</option>
+        </select>
+      </label>
+      <label class="control-group">Focus
+        <select id="focusSelect">
+          <option value="general">General</option>
+          <option value="love">Love</option>
+          <option value="career">Career</option>
+          <option value="money">Money</option>
+        </select>
+      </label>
+      <button class="reset" id="resetBtn" type="button">Reset & Shuffle</button>
+    </div>
+    <section id="grid" class="grid" aria-label="Tarot cards">
+      <button class="card" type="button" data-name="The Fool" data-index="0" aria-label="Tarot card 1"><span class="back">TAROT</span><span class="front">The Fool</span></button>
+<button class="card" type="button" data-name="The Magician" data-index="1" aria-label="Tarot card 2"><span class="back">TAROT</span><span class="front">The Magician</span></button>
+<button class="card" type="button" data-name="The High Priestess" data-index="2" aria-label="Tarot card 3"><span class="back">TAROT</span><span class="front">The High Priestess</span></button>
+<button class="card" type="button" data-name="The Empress" data-index="3" aria-label="Tarot card 4"><span class="back">TAROT</span><span class="front">The Empress</span></button>
+<button class="card" type="button" data-name="The Emperor" data-index="4" aria-label="Tarot card 5"><span class="back">TAROT</span><span class="front">The Emperor</span></button>
+<button class="card" type="button" data-name="The Hierophant" data-index="5" aria-label="Tarot card 6"><span class="back">TAROT</span><span class="front">The Hierophant</span></button>
+<button class="card" type="button" data-name="The Lovers" data-index="6" aria-label="Tarot card 7"><span class="back">TAROT</span><span class="front">The Lovers</span></button>
+<button class="card" type="button" data-name="The Chariot" data-index="7" aria-label="Tarot card 8"><span class="back">TAROT</span><span class="front">The Chariot</span></button>
+<button class="card" type="button" data-name="Strength" data-index="8" aria-label="Tarot card 9"><span class="back">TAROT</span><span class="front">Strength</span></button>
+<button class="card" type="button" data-name="The Hermit" data-index="9" aria-label="Tarot card 10"><span class="back">TAROT</span><span class="front">The Hermit</span></button>
+<button class="card" type="button" data-name="Wheel of Fortune" data-index="10" aria-label="Tarot card 11"><span class="back">TAROT</span><span class="front">Wheel of Fortune</span></button>
+<button class="card" type="button" data-name="Justice" data-index="11" aria-label="Tarot card 12"><span class="back">TAROT</span><span class="front">Justice</span></button>
+<button class="card" type="button" data-name="The Hanged Man" data-index="12" aria-label="Tarot card 13"><span class="back">TAROT</span><span class="front">The Hanged Man</span></button>
+<button class="card" type="button" data-name="Death" data-index="13" aria-label="Tarot card 14"><span class="back">TAROT</span><span class="front">Death</span></button>
+<button class="card" type="button" data-name="Temperance" data-index="14" aria-label="Tarot card 15"><span class="back">TAROT</span><span class="front">Temperance</span></button>
+<button class="card" type="button" data-name="The Devil" data-index="15" aria-label="Tarot card 16"><span class="back">TAROT</span><span class="front">The Devil</span></button>
+<button class="card" type="button" data-name="The Tower" data-index="16" aria-label="Tarot card 17"><span class="back">TAROT</span><span class="front">The Tower</span></button>
+<button class="card" type="button" data-name="The Star" data-index="17" aria-label="Tarot card 18"><span class="back">TAROT</span><span class="front">The Star</span></button>
+<button class="card" type="button" data-name="The Moon" data-index="18" aria-label="Tarot card 19"><span class="back">TAROT</span><span class="front">The Moon</span></button>
+<button class="card" type="button" data-name="The Sun" data-index="19" aria-label="Tarot card 20"><span class="back">TAROT</span><span class="front">The Sun</span></button>
+<button class="card" type="button" data-name="Judgement" data-index="20" aria-label="Tarot card 21"><span class="back">TAROT</span><span class="front">Judgement</span></button>
+<button class="card" type="button" data-name="The World" data-index="21" aria-label="Tarot card 22"><span class="back">TAROT</span><span class="front">The World</span></button>
+<button class="card" type="button" data-name="Ace of Wands" data-index="22" aria-label="Tarot card 23"><span class="back">TAROT</span><span class="front">Ace of Wands</span></button>
+<button class="card" type="button" data-name="Two of Wands" data-index="23" aria-label="Tarot card 24"><span class="back">TAROT</span><span class="front">Two of Wands</span></button>
+<button class="card" type="button" data-name="Three of Wands" data-index="24" aria-label="Tarot card 25"><span class="back">TAROT</span><span class="front">Three of Wands</span></button>
+<button class="card" type="button" data-name="Four of Wands" data-index="25" aria-label="Tarot card 26"><span class="back">TAROT</span><span class="front">Four of Wands</span></button>
+<button class="card" type="button" data-name="Five of Wands" data-index="26" aria-label="Tarot card 27"><span class="back">TAROT</span><span class="front">Five of Wands</span></button>
+<button class="card" type="button" data-name="Six of Wands" data-index="27" aria-label="Tarot card 28"><span class="back">TAROT</span><span class="front">Six of Wands</span></button>
+<button class="card" type="button" data-name="Seven of Wands" data-index="28" aria-label="Tarot card 29"><span class="back">TAROT</span><span class="front">Seven of Wands</span></button>
+<button class="card" type="button" data-name="Eight of Wands" data-index="29" aria-label="Tarot card 30"><span class="back">TAROT</span><span class="front">Eight of Wands</span></button>
+<button class="card" type="button" data-name="Nine of Wands" data-index="30" aria-label="Tarot card 31"><span class="back">TAROT</span><span class="front">Nine of Wands</span></button>
+<button class="card" type="button" data-name="Ten of Wands" data-index="31" aria-label="Tarot card 32"><span class="back">TAROT</span><span class="front">Ten of Wands</span></button>
+<button class="card" type="button" data-name="Page of Wands" data-index="32" aria-label="Tarot card 33"><span class="back">TAROT</span><span class="front">Page of Wands</span></button>
+<button class="card" type="button" data-name="Knight of Wands" data-index="33" aria-label="Tarot card 34"><span class="back">TAROT</span><span class="front">Knight of Wands</span></button>
+<button class="card" type="button" data-name="Queen of Wands" data-index="34" aria-label="Tarot card 35"><span class="back">TAROT</span><span class="front">Queen of Wands</span></button>
+<button class="card" type="button" data-name="King of Wands" data-index="35" aria-label="Tarot card 36"><span class="back">TAROT</span><span class="front">King of Wands</span></button>
+<button class="card" type="button" data-name="Ace of Cups" data-index="36" aria-label="Tarot card 37"><span class="back">TAROT</span><span class="front">Ace of Cups</span></button>
+<button class="card" type="button" data-name="Two of Cups" data-index="37" aria-label="Tarot card 38"><span class="back">TAROT</span><span class="front">Two of Cups</span></button>
+<button class="card" type="button" data-name="Three of Cups" data-index="38" aria-label="Tarot card 39"><span class="back">TAROT</span><span class="front">Three of Cups</span></button>
+<button class="card" type="button" data-name="Four of Cups" data-index="39" aria-label="Tarot card 40"><span class="back">TAROT</span><span class="front">Four of Cups</span></button>
+<button class="card" type="button" data-name="Five of Cups" data-index="40" aria-label="Tarot card 41"><span class="back">TAROT</span><span class="front">Five of Cups</span></button>
+<button class="card" type="button" data-name="Six of Cups" data-index="41" aria-label="Tarot card 42"><span class="back">TAROT</span><span class="front">Six of Cups</span></button>
+<button class="card" type="button" data-name="Seven of Cups" data-index="42" aria-label="Tarot card 43"><span class="back">TAROT</span><span class="front">Seven of Cups</span></button>
+<button class="card" type="button" data-name="Eight of Cups" data-index="43" aria-label="Tarot card 44"><span class="back">TAROT</span><span class="front">Eight of Cups</span></button>
+<button class="card" type="button" data-name="Nine of Cups" data-index="44" aria-label="Tarot card 45"><span class="back">TAROT</span><span class="front">Nine of Cups</span></button>
+<button class="card" type="button" data-name="Ten of Cups" data-index="45" aria-label="Tarot card 46"><span class="back">TAROT</span><span class="front">Ten of Cups</span></button>
+<button class="card" type="button" data-name="Page of Cups" data-index="46" aria-label="Tarot card 47"><span class="back">TAROT</span><span class="front">Page of Cups</span></button>
+<button class="card" type="button" data-name="Knight of Cups" data-index="47" aria-label="Tarot card 48"><span class="back">TAROT</span><span class="front">Knight of Cups</span></button>
+<button class="card" type="button" data-name="Queen of Cups" data-index="48" aria-label="Tarot card 49"><span class="back">TAROT</span><span class="front">Queen of Cups</span></button>
+<button class="card" type="button" data-name="King of Cups" data-index="49" aria-label="Tarot card 50"><span class="back">TAROT</span><span class="front">King of Cups</span></button>
+<button class="card" type="button" data-name="Ace of Swords" data-index="50" aria-label="Tarot card 51"><span class="back">TAROT</span><span class="front">Ace of Swords</span></button>
+<button class="card" type="button" data-name="Two of Swords" data-index="51" aria-label="Tarot card 52"><span class="back">TAROT</span><span class="front">Two of Swords</span></button>
+<button class="card" type="button" data-name="Three of Swords" data-index="52" aria-label="Tarot card 53"><span class="back">TAROT</span><span class="front">Three of Swords</span></button>
+<button class="card" type="button" data-name="Four of Swords" data-index="53" aria-label="Tarot card 54"><span class="back">TAROT</span><span class="front">Four of Swords</span></button>
+<button class="card" type="button" data-name="Five of Swords" data-index="54" aria-label="Tarot card 55"><span class="back">TAROT</span><span class="front">Five of Swords</span></button>
+<button class="card" type="button" data-name="Six of Swords" data-index="55" aria-label="Tarot card 56"><span class="back">TAROT</span><span class="front">Six of Swords</span></button>
+<button class="card" type="button" data-name="Seven of Swords" data-index="56" aria-label="Tarot card 57"><span class="back">TAROT</span><span class="front">Seven of Swords</span></button>
+<button class="card" type="button" data-name="Eight of Swords" data-index="57" aria-label="Tarot card 58"><span class="back">TAROT</span><span class="front">Eight of Swords</span></button>
+<button class="card" type="button" data-name="Nine of Swords" data-index="58" aria-label="Tarot card 59"><span class="back">TAROT</span><span class="front">Nine of Swords</span></button>
+<button class="card" type="button" data-name="Ten of Swords" data-index="59" aria-label="Tarot card 60"><span class="back">TAROT</span><span class="front">Ten of Swords</span></button>
+<button class="card" type="button" data-name="Page of Swords" data-index="60" aria-label="Tarot card 61"><span class="back">TAROT</span><span class="front">Page of Swords</span></button>
+<button class="card" type="button" data-name="Knight of Swords" data-index="61" aria-label="Tarot card 62"><span class="back">TAROT</span><span class="front">Knight of Swords</span></button>
+<button class="card" type="button" data-name="Queen of Swords" data-index="62" aria-label="Tarot card 63"><span class="back">TAROT</span><span class="front">Queen of Swords</span></button>
+<button class="card" type="button" data-name="King of Swords" data-index="63" aria-label="Tarot card 64"><span class="back">TAROT</span><span class="front">King of Swords</span></button>
+<button class="card" type="button" data-name="Ace of Pentacles" data-index="64" aria-label="Tarot card 65"><span class="back">TAROT</span><span class="front">Ace of Pentacles</span></button>
+<button class="card" type="button" data-name="Two of Pentacles" data-index="65" aria-label="Tarot card 66"><span class="back">TAROT</span><span class="front">Two of Pentacles</span></button>
+<button class="card" type="button" data-name="Three of Pentacles" data-index="66" aria-label="Tarot card 67"><span class="back">TAROT</span><span class="front">Three of Pentacles</span></button>
+<button class="card" type="button" data-name="Four of Pentacles" data-index="67" aria-label="Tarot card 68"><span class="back">TAROT</span><span class="front">Four of Pentacles</span></button>
+<button class="card" type="button" data-name="Five of Pentacles" data-index="68" aria-label="Tarot card 69"><span class="back">TAROT</span><span class="front">Five of Pentacles</span></button>
+<button class="card" type="button" data-name="Six of Pentacles" data-index="69" aria-label="Tarot card 70"><span class="back">TAROT</span><span class="front">Six of Pentacles</span></button>
+<button class="card" type="button" data-name="Seven of Pentacles" data-index="70" aria-label="Tarot card 71"><span class="back">TAROT</span><span class="front">Seven of Pentacles</span></button>
+<button class="card" type="button" data-name="Eight of Pentacles" data-index="71" aria-label="Tarot card 72"><span class="back">TAROT</span><span class="front">Eight of Pentacles</span></button>
+<button class="card" type="button" data-name="Nine of Pentacles" data-index="72" aria-label="Tarot card 73"><span class="back">TAROT</span><span class="front">Nine of Pentacles</span></button>
+<button class="card" type="button" data-name="Ten of Pentacles" data-index="73" aria-label="Tarot card 74"><span class="back">TAROT</span><span class="front">Ten of Pentacles</span></button>
+<button class="card" type="button" data-name="Page of Pentacles" data-index="74" aria-label="Tarot card 75"><span class="back">TAROT</span><span class="front">Page of Pentacles</span></button>
+<button class="card" type="button" data-name="Knight of Pentacles" data-index="75" aria-label="Tarot card 76"><span class="back">TAROT</span><span class="front">Knight of Pentacles</span></button>
+<button class="card" type="button" data-name="Queen of Pentacles" data-index="76" aria-label="Tarot card 77"><span class="back">TAROT</span><span class="front">Queen of Pentacles</span></button>
+<button class="card" type="button" data-name="King of Pentacles" data-index="77" aria-label="Tarot card 78"><span class="back">TAROT</span><span class="front">King of Pentacles</span></button>
+    </section>
+  </main>
+  <script>
+    const allCards = ["The Fool", "The Magician", "The High Priestess", "The Empress", "The Emperor", "The Hierophant", "The Lovers", "The Chariot", "Strength", "The Hermit", "Wheel of Fortune", "Justice", "The Hanged Man", "Death", "Temperance", "The Devil", "The Tower", "The Star", "The Moon", "The Sun", "Judgement", "The World", "Ace of Wands", "Two of Wands", "Three of Wands", "Four of Wands", "Five of Wands", "Six of Wands", "Seven of Wands", "Eight of Wands", "Nine of Wands", "Ten of Wands", "Page of Wands", "Knight of Wands", "Queen of Wands", "King of Wands", "Ace of Cups", "Two of Cups", "Three of Cups", "Four of Cups", "Five of Cups", "Six of Cups", "Seven of Cups", "Eight of Cups", "Nine of Cups", "Ten of Cups", "Page of Cups", "Knight of Cups", "Queen of Cups", "King of Cups", "Ace of Swords", "Two of Swords", "Three of Swords", "Four of Swords", "Five of Swords", "Six of Swords", "Seven of Swords", "Eight of Swords", "Nine of Swords", "Ten of Swords", "Page of Swords", "Knight of Swords", "Queen of Swords", "King of Swords", "Ace of Pentacles", "Two of Pentacles", "Three of Pentacles", "Four of Pentacles", "Five of Pentacles", "Six of Pentacles", "Seven of Pentacles", "Eight of Pentacles", "Nine of Pentacles", "Ten of Pentacles", "Page of Pentacles", "Knight of Pentacles", "Queen of Pentacles", "King of Pentacles"];
+    const MAJOR_META = {"The Fool": {"insight": "a leap into unknown potential", "advice": "start clean but commit to one grounded next step", "energy": 2, "challenge": 0.8, "domains": {"love": 0.8, "career": 1.2, "finance": 0.2, "wellbeing": 1.0}}, "The Magician": {"insight": "focused manifestation through skill and intention", "advice": "align your words, tools, and actions around one target", "energy": 1.9, "challenge": 0.6, "domains": {"love": 0.9, "career": 1.3, "finance": 0.8, "wellbeing": 0.9}}, "The High Priestess": {"insight": "hidden information and intuitive timing", "advice": "delay noisy decisions and trust quiet data", "energy": 0.4, "challenge": 0.9, "domains": {"love": 0.8, "career": 0.2, "finance": 0.1, "wellbeing": 1.2}}, "The Empress": {"insight": "growth, nurture, and abundance", "advice": "invest in what is already healthy and fertile", "energy": 1.5, "challenge": 0.4, "domains": {"love": 1.3, "career": 0.9, "finance": 0.8, "wellbeing": 1.3}}, "The Emperor": {"insight": "structure, authority, and execution", "advice": "set boundaries, timelines, and ownership", "energy": 1.4, "challenge": 0.8, "domains": {"love": 0.5, "career": 1.4, "finance": 1.1, "wellbeing": 0.6}}, "The Hierophant": {"insight": "tradition, mentorship, and shared values", "advice": "use proven systems before inventing new ones", "energy": 0.9, "challenge": 0.7, "domains": {"love": 1.0, "career": 0.8, "finance": 0.7, "wellbeing": 0.7}}, "The Lovers": {"insight": "alignment through choice and values", "advice": "choose what is honest, not just attractive", "energy": 1.2, "challenge": 0.8, "domains": {"love": 1.6, "career": 0.8, "finance": 0.4, "wellbeing": 1.0}}, "The Chariot": {"insight": "directed momentum and disciplined progress", "advice": "focus all effort on one lane for 30 days", "energy": 1.8, "challenge": 0.8, "domains": {"love": 0.7, "career": 1.5, "finance": 1.0, "wellbeing": 0.7}}, "Strength": {"insight": "courage, patience, and inner regulation", "advice": "lead with composure under pressure", "energy": 1.1, "challenge": 0.5, "domains": {"love": 1.1, "career": 0.9, "finance": 0.6, "wellbeing": 1.4}}, "The Hermit": {"insight": "reflection and selective withdrawal", "advice": "reduce noise and let insight mature", "energy": 0.2, "challenge": 1.0, "domains": {"love": 0.3, "career": 0.7, "finance": 0.4, "wellbeing": 1.1}}, "Wheel of Fortune": {"insight": "turning cycles and changing conditions", "advice": "stay adaptable and capitalize on timing", "energy": 1.3, "challenge": 1.0, "domains": {"love": 0.9, "career": 1.0, "finance": 1.0, "wellbeing": 0.8}}, "Justice": {"insight": "cause, effect, and objective truth", "advice": "document facts and choose proportionate action", "energy": 0.8, "challenge": 0.7, "domains": {"love": 0.6, "career": 1.0, "finance": 0.9, "wellbeing": 0.6}}, "The Hanged Man": {"insight": "necessary pause and perspective shift", "advice": "release control to reveal the better path", "energy": -0.2, "challenge": 1.2, "domains": {"love": 0.6, "career": 0.3, "finance": 0.2, "wellbeing": 0.8}}, "Death": {"insight": "ending that creates transformation", "advice": "close the old cycle fully before restarting", "energy": 0.7, "challenge": 1.3, "domains": {"love": 0.7, "career": 0.9, "finance": 0.7, "wellbeing": 0.9}}, "Temperance": {"insight": "integration, moderation, and healing", "advice": "blend extremes into a sustainable rhythm", "energy": 1.0, "challenge": 0.4, "domains": {"love": 1.0, "career": 0.9, "finance": 0.8, "wellbeing": 1.4}}, "The Devil": {"insight": "attachment, compulsion, or power traps", "advice": "name the dependency and renegotiate the pattern", "energy": 0.6, "challenge": 1.6, "domains": {"love": -0.3, "career": 0.5, "finance": -0.4, "wellbeing": -0.5}}, "The Tower": {"insight": "disruption that breaks unstable structures", "advice": "protect essentials and rebuild on facts", "energy": 0.4, "challenge": 1.8, "domains": {"love": -0.2, "career": 0.2, "finance": -0.3, "wellbeing": -0.4}}, "The Star": {"insight": "renewed hope and long-range clarity", "advice": "act from faith supported by practical steps", "energy": 1.3, "challenge": 0.3, "domains": {"love": 1.1, "career": 1.0, "finance": 0.8, "wellbeing": 1.6}}, "The Moon": {"insight": "ambiguity, fear, and symbolic intuition", "advice": "verify assumptions and track emotional bias", "energy": 0.3, "challenge": 1.4, "domains": {"love": 0.2, "career": 0.0, "finance": -0.2, "wellbeing": 0.1}}, "The Sun": {"insight": "clarity, vitality, and visible success", "advice": "move decisively while conditions are bright", "energy": 1.8, "challenge": 0.2, "domains": {"love": 1.4, "career": 1.5, "finance": 1.1, "wellbeing": 1.7}}, "Judgement": {"insight": "awakening, reckoning, and decisive renewal", "advice": "answer the call and stop postponing your pivot", "energy": 1.4, "challenge": 0.7, "domains": {"love": 0.8, "career": 1.2, "finance": 0.8, "wellbeing": 1.0}}, "The World": {"insight": "completion, mastery, and expansion", "advice": "close this chapter and step into the next tier", "energy": 1.6, "challenge": 0.3, "domains": {"love": 1.2, "career": 1.3, "finance": 1.0, "wellbeing": 1.2}}};
+    const RANK_META = {"Ace": {"theme": "new potential", "energy": 1.3, "challenge": 0.5, "domains": {"love": 0.6, "career": 0.6, "finance": 0.6, "wellbeing": 0.7}, "advice": "start small and start now"}, "Two": {"theme": "balance and choice", "energy": 0.8, "challenge": 0.8, "domains": {"love": 0.7, "career": 0.4, "finance": 0.5, "wellbeing": 0.6}, "advice": "choose with both logic and feeling"}, "Three": {"theme": "growth and expansion", "energy": 1.1, "challenge": 0.6, "domains": {"love": 0.8, "career": 0.9, "finance": 0.7, "wellbeing": 0.7}, "advice": "collaborate where momentum already exists"}, "Four": {"theme": "structure and stability", "energy": 0.6, "challenge": 0.6, "domains": {"love": 0.5, "career": 0.7, "finance": 0.8, "wellbeing": 0.7}, "advice": "stabilize before scaling"}, "Five": {"theme": "friction and adaptation", "energy": 0.4, "challenge": 1.3, "domains": {"love": -0.2, "career": 0.1, "finance": -0.2, "wellbeing": -0.3}, "advice": "treat conflict as feedback, not identity"}, "Six": {"theme": "rebalancing and recovery", "energy": 0.9, "challenge": 0.5, "domains": {"love": 0.8, "career": 0.7, "finance": 0.6, "wellbeing": 0.9}, "advice": "accept support and consolidate gains"}, "Seven": {"theme": "assessment and conviction", "energy": 0.8, "challenge": 0.9, "domains": {"love": 0.3, "career": 0.7, "finance": 0.6, "wellbeing": 0.5}, "advice": "evaluate assumptions before doubling down"}, "Eight": {"theme": "movement and skill", "energy": 1.2, "challenge": 0.6, "domains": {"love": 0.6, "career": 1.0, "finance": 0.8, "wellbeing": 0.6}, "advice": "keep cadence high and quality controlled"}, "Nine": {"theme": "near completion", "energy": 1.0, "challenge": 0.7, "domains": {"love": 0.7, "career": 0.9, "finance": 0.9, "wellbeing": 0.8}, "advice": "finish strong and protect boundaries"}, "Ten": {"theme": "closure and consequence", "energy": 0.7, "challenge": 1.0, "domains": {"love": 0.4, "career": 0.6, "finance": 0.7, "wellbeing": 0.4}, "advice": "complete the cycle before restarting"}, "Page": {"theme": "learning and messages", "energy": 1.0, "challenge": 0.8, "domains": {"love": 0.7, "career": 0.7, "finance": 0.5, "wellbeing": 0.8}, "advice": "stay curious and gather signal"}, "Knight": {"theme": "drive and pursuit", "energy": 1.3, "challenge": 1.0, "domains": {"love": 0.6, "career": 1.1, "finance": 0.8, "wellbeing": 0.5}, "advice": "move boldly but avoid tunnel vision"}, "Queen": {"theme": "mastery through care", "energy": 1.0, "challenge": 0.6, "domains": {"love": 1.0, "career": 0.8, "finance": 0.7, "wellbeing": 1.0}, "advice": "lead with calm authority"}, "King": {"theme": "authority and stewardship", "energy": 1.1, "challenge": 0.7, "domains": {"love": 0.8, "career": 1.2, "finance": 1.0, "wellbeing": 0.8}, "advice": "commit to long-term responsibility"}};
+    const SUIT_META = {"Wands": {"focus": "action, ambition, and creative force", "energy": 1.3, "challenge": 0.8, "domains": {"love": 0.6, "career": 1.2, "finance": 0.6, "wellbeing": 0.6}, "advice": "channel momentum into one priority"}, "Cups": {"focus": "emotion, intuition, and relationships", "energy": 0.8, "challenge": 0.8, "domains": {"love": 1.3, "career": 0.4, "finance": 0.3, "wellbeing": 1.1}, "advice": "name feelings early before they spill over"}, "Swords": {"focus": "thought, truth, and difficult clarity", "energy": 1.0, "challenge": 1.2, "domains": {"love": 0.2, "career": 0.8, "finance": 0.4, "wellbeing": 0.2}, "advice": "cut noise and communicate precisely"}, "Pentacles": {"focus": "material stability, health, and resources", "energy": 0.9, "challenge": 0.7, "domains": {"love": 0.5, "career": 0.8, "finance": 1.4, "wellbeing": 0.9}, "advice": "opt for sustainable, practical gains"}};
+
+    const POSITIONS = ["Past", "Present", "Future"];
+    const POSITION_WEIGHTS = [0.24, 0.33, 0.43];
+    const maxPicks = 3;
+
+    const FOCUS_WEIGHTS = {
+      general: { love: 1, career: 1, finance: 1, wellbeing: 1 },
+      love: { love: 1.35, career: 0.9, finance: 0.85, wellbeing: 1.05 },
+      career: { love: 0.85, career: 1.35, finance: 1.05, wellbeing: 0.95 },
+      money: { love: 0.8, career: 1.1, finance: 1.4, wellbeing: 0.9 },
+    };
+
+    const FOCUS_LABEL = {
+      general: "General",
+      love: "Love",
+      career: "Career",
+      money: "Money",
+    };
+
+    const SUIT_ELEMENT = { Wands: "Fire", Swords: "Air", Cups: "Water", Pentacles: "Earth" };
+    const MAJOR_ELEMENT = {
+      "The Fool": "Air", "The Magician": "Air", "The High Priestess": "Water", "The Empress": "Earth",
+      "The Emperor": "Fire", "The Hierophant": "Earth", "The Lovers": "Air", "The Chariot": "Water",
+      "Strength": "Fire", "The Hermit": "Earth", "Wheel of Fortune": "Fire", "Justice": "Air",
+      "The Hanged Man": "Water", "Death": "Water", "Temperance": "Fire", "The Devil": "Earth",
+      "The Tower": "Fire", "The Star": "Air", "The Moon": "Water", "The Sun": "Fire",
+      "Judgement": "Fire", "The World": "Earth"
+    };
+
+    let picks = [];
+    let deck = [];
+    let focusMode = "general";
+
+    const grid = document.getElementById("grid");
+    const countEl = document.getElementById("count");
+    const pickedList = document.getElementById("pickedList");
+    const doneMsg = document.getElementById("doneMsg");
+    const resetBtn = document.getElementById("resetBtn");
+    const themeSelect = document.getElementById("themeSelect");
+    const focusSelect = document.getElementById("focusSelect");
+    const predictionPanel = document.getElementById("predictionPanel");
+    const spreadCards = document.getElementById("spreadCards");
+    const patternLine = document.getElementById("patternLine");
+    const trajectory = document.getElementById("trajectory");
+    const likelyLine = document.getElementById("likelyLine");
+    const riskLine = document.getElementById("riskLine");
+    const forecastList = document.getElementById("forecastList");
+    const actionLine = document.getElementById("actionLine");
+    const confidenceLine = document.getElementById("confidenceLine");
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function applyTheme(themeValue) {
+      const theme = ["mint", "parchment", "white"].includes(themeValue) ? themeValue : "mint";
+      document.body.setAttribute("data-theme", theme);
+      themeSelect.value = theme;
+    }
+
+    function parseMinor(cardName) {
+      const bits = cardName.split(" of ");
+      if (bits.length !== 2) return null;
+      return { rank: bits[0], suit: bits[1] };
+    }
+
+    function elementCompatibility(a, b) {
+      if (!a || !b) return 0;
+      if (a === b) return 0.6;
+      if ((a === "Fire" && b === "Air") || (a === "Air" && b === "Fire")) return 0.7;
+      if ((a === "Water" && b === "Earth") || (a === "Earth" && b === "Water")) return 0.7;
+      if ((a === "Fire" && b === "Water") || (a === "Water" && b === "Fire")) return -0.8;
+      if ((a === "Air" && b === "Earth") || (a === "Earth" && b === "Air")) return -0.8;
+      return 0;
+    }
+
+    function cardElement(cardName) {
+      const parsed = parseMinor(cardName);
+      if (parsed && SUIT_ELEMENT[parsed.suit]) return SUIT_ELEMENT[parsed.suit];
+      return MAJOR_ELEMENT[cardName] || "Unknown";
+    }
+
+    function showPickedOnly() {
+      grid.classList.add("picked-only");
+      const selected = [...grid.querySelectorAll(".card.picked")].sort(
+        (a, b) => Number(a.dataset.pickOrder) - Number(b.dataset.pickOrder)
+      );
+      [...grid.querySelectorAll(".card")].forEach((card) => {
+        if (!card.classList.contains("picked")) card.hidden = true;
+      });
+      selected.forEach((card) => {
+        card.hidden = false;
+        grid.appendChild(card);
+      });
+    }
+
+    function buildCardMeta(cardName, orientation) {
+      const major = MAJOR_META[cardName];
+      if (major) {
+        return { ...major, source: "major", orientation };
+      }
+
+      const parsed = parseMinor(cardName);
+      if (!parsed || !RANK_META[parsed.rank] || !SUIT_META[parsed.suit]) {
+        return {
+          insight: "mixed signals and evolving context",
+          advice: "pause, simplify, and gather better signal",
+          energy: 0.5,
+          challenge: 0.8,
+          domains: { love: 0.4, career: 0.4, finance: 0.4, wellbeing: 0.5 },
+          source: "fallback",
+          orientation,
+        };
+      }
+
+      const rankMeta = RANK_META[parsed.rank];
+      const suitMeta = SUIT_META[parsed.suit];
+      return {
+        insight: `${rankMeta.theme} in ${suitMeta.focus}`,
+        advice: `${rankMeta.advice}; ${suitMeta.advice}`,
+        energy: (rankMeta.energy + suitMeta.energy) / 2,
+        challenge: (rankMeta.challenge + suitMeta.challenge) / 2,
+        domains: {
+          love: rankMeta.domains.love * 0.45 + suitMeta.domains.love * 0.55,
+          career: rankMeta.domains.career * 0.45 + suitMeta.domains.career * 0.55,
+          finance: rankMeta.domains.finance * 0.45 + suitMeta.domains.finance * 0.55,
+          wellbeing: rankMeta.domains.wellbeing * 0.45 + suitMeta.domains.wellbeing * 0.55,
+        },
+        source: "minor",
+        orientation,
+      };
+    }
+
+    function readingSentence(position, cardName, meta) {
+      if (meta.orientation === "reversed") {
+        return `${position}: ${cardName} (reversed) indicates delays around ${meta.insight}.`;
+      }
+      return `${position}: ${cardName} indicates ${meta.insight}.`;
+    }
+
+    function computePrediction() {
+      const domainScores = { love: 0, career: 0, finance: 0, wellbeing: 0 };
+      let totalEnergy = 0;
+      let totalChallenge = 0;
+      let reversedCount = 0;
+      let majorCount = 0;
+      const elementCount = { Fire: 0, Air: 0, Water: 0, Earth: 0 };
+      const cardSummaries = [];
+      const focusWeights = FOCUS_WEIGHTS[focusMode] || FOCUS_WEIGHTS.general;
+
+      picks.forEach((pick, idx) => {
+        const weight = POSITION_WEIGHTS[idx];
+        const meta = buildCardMeta(pick.name, pick.orientation);
+        const orientFactor = pick.orientation === "upright" ? 1 : -0.85;
+        const challengeFactor = pick.orientation === "upright" ? 0.9 : 1.28;
+
+        if (pick.orientation === "reversed") reversedCount += 1;
+        if (MAJOR_META[pick.name]) majorCount += 1;
+        const el = cardElement(pick.name);
+        if (elementCount[el] !== undefined) elementCount[el] += 1;
+
+        domainScores.love += meta.domains.love * weight * orientFactor;
+        domainScores.career += meta.domains.career * weight * orientFactor;
+        domainScores.finance += meta.domains.finance * weight * orientFactor;
+        domainScores.wellbeing += meta.domains.wellbeing * weight * orientFactor;
+
+        totalEnergy += meta.energy * weight * orientFactor;
+        totalChallenge += meta.challenge * weight * challengeFactor;
+
+        cardSummaries.push({
+          position: POSITIONS[idx],
+          cardName: pick.name,
+          orientation: pick.orientation,
+          summary: readingSentence(POSITIONS[idx], pick.name, meta),
+          advice: meta.advice,
+        });
+      });
+
+      const e0 = cardElement(picks[0].name);
+      const e1 = cardElement(picks[1].name);
+      const e2 = cardElement(picks[2].name);
+      const compat = elementCompatibility(e0, e1) + elementCompatibility(e1, e2);
+
+      const trendScore = totalEnergy - (totalChallenge * 0.58) + compat + (picks[2].orientation === "upright" ? 0.32 : -0.35);
+      const trendPct = Math.round(clamp(50 + trendScore * 16, 18, 88));
+
+      const love = Math.round(clamp(50 + domainScores.love * 18 * focusWeights.love + compat * 4, 15, 90));
+      const career = Math.round(clamp(50 + domainScores.career * 18 * focusWeights.career + compat * 2, 15, 90));
+      const finance = Math.round(clamp(50 + domainScores.finance * 18 * focusWeights.finance + compat * 2, 15, 90));
+      const wellbeing = Math.round(clamp(50 + domainScores.wellbeing * 18 * focusWeights.wellbeing + compat * 3, 15, 90));
+
+      const futureMeta = buildCardMeta(picks[2].name, picks[2].orientation);
+      const presentMeta = buildCardMeta(picks[1].name, picks[1].orientation);
+      const futureAdvicePrefix = picks[2].orientation === "upright" ? "Best move now" : "Best corrective move";
+
+      const dominantElement = Object.entries(elementCount).sort((a, b) => b[1] - a[1])[0][0];
+      const consistency = Math.abs(compat) + (majorCount * 0.25) - (reversedCount * 0.15);
+      const confidence = Math.round(clamp(56 + consistency * 10, 40, 84));
+
+      let trajectoryText = "Trajectory: moderate forward movement with periodic friction; outcomes improve with consistent action.";
+      if (trendPct >= 68) trajectoryText = "Trajectory: momentum is favorable; this path likely strengthens over the next 4-8 weeks.";
+      if (trendPct <= 42) trajectoryText = "Trajectory: resistance is elevated; expect slower progress unless you change strategy now.";
+
+      const likelyText = `Likely path: ${trendPct}% chance of continuation on the current trajectory if behavior stays consistent.`;
+      const riskText = trendPct >= 55
+        ? "Risk path: overconfidence or scattered effort can dilute current momentum."
+        : "Risk path: avoidance and delay can harden the current challenge pattern.";
+
+      return {
+        cards: cardSummaries,
+        pattern: `Pattern: ${majorCount} Major Arcana, ${reversedCount} reversed, dominant element ${dominantElement}. Focus: ${FOCUS_LABEL[focusMode]}.`,
+        trajectory: trajectoryText,
+        likelyLine: likelyText,
+        riskLine: riskText,
+        forecasts: [
+          `Relationships: ${love}%`,
+          `Career: ${career}%`,
+          `Finances: ${finance}%`,
+          `Wellbeing: ${wellbeing}%`,
+        ],
+        action: `${futureAdvicePrefix}: ${futureMeta.advice}. Anchor with present focus: ${presentMeta.advice}.`,
+        confidence: `Reading confidence: ${confidence}% (symbolic guidance, not deterministic certainty).`,
+      };
+    }
+
+    function renderPrediction() {
+      if (picks.length !== maxPicks) {
+        predictionPanel.hidden = true;
+        predictionPanel.classList.remove("reveal");
+        return;
+      }
+
+      const prediction = computePrediction();
+      predictionPanel.hidden = false;
+      predictionPanel.classList.remove("reveal");
+      void predictionPanel.offsetWidth;
+      predictionPanel.classList.add("reveal");
+
+      spreadCards.innerHTML = "";
+      prediction.cards.forEach((item, idx) => {
+        const card = document.createElement("div");
+        card.className = "spread-card";
+        card.innerHTML = `
+          <strong>${item.position}: ${item.cardName} (${item.orientation})</strong>
+          <div class="stage-wrap">
+            <div class="stage-tarot">${item.cardName}</div>
+            <div class="stage-text">${item.summary}</div>
+          </div>
+        `;
+        card.style.animation = `panelRise .35s ease ${idx * 60}ms both`;
+        spreadCards.appendChild(card);
+      });
+
+      patternLine.textContent = prediction.pattern;
+      trajectory.textContent = prediction.trajectory;
+      likelyLine.textContent = prediction.likelyLine;
+      riskLine.textContent = prediction.riskLine;
+
+      forecastList.innerHTML = "";
+      prediction.forecasts.forEach((line) => {
+        const li = document.createElement("li");
+        li.textContent = line;
+        forecastList.appendChild(li);
+      });
+
+      actionLine.textContent = prediction.action;
+      confidenceLine.textContent = prediction.confidence;
+    }
+
+    function renderStatus() {
+      countEl.textContent = `Chosen: ${picks.length} / ${maxPicks}`;
+      pickedList.innerHTML = "";
+      picks.forEach((pick, idx) => {
+        const li = document.createElement("li");
+        li.textContent = `${idx + 1}. ${POSITIONS[idx]} - ${pick.name} (${pick.orientation})`;
+        pickedList.appendChild(li);
+      });
+      doneMsg.hidden = picks.length !== maxPicks;
+      renderPrediction();
+    }
+
+    function createCard(name, index) {
+      const el = document.createElement("button");
+      el.className = "card";
+      el.type = "button";
+      el.dataset.name = name;
+      el.dataset.index = String(index);
+      el.setAttribute("aria-label", `Tarot card ${index + 1}`);
+      el.style.setProperty("--i", String(index));
+      el.innerHTML = `
+        <span class="back">TAROT</span>
+        <span class="front">${name}</span>
+      `;
+
+      el.addEventListener("click", () => {
+        if (el.classList.contains("picked")) return;
+        if (picks.length >= maxPicks) return;
+
+        const orientation = Math.random() < 0.25 ? "reversed" : "upright";
+        picks.push({ name, orientation });
+        el.classList.add("picked");
+        el.dataset.pickOrder = String(picks.length);
+
+        const badge = document.createElement("span");
+        badge.className = "pick-no";
+        badge.textContent = `#${picks.length}`;
+        el.appendChild(badge);
+
+        if (picks.length === maxPicks) showPickedOnly();
+        renderStatus();
+      });
+      return el;
+    }
+
+    function renderDeck() {
+      grid.innerHTML = "";
+      grid.classList.remove("picked-only");
+      picks = [];
+      predictionPanel.hidden = true;
+      predictionPanel.classList.remove("reveal");
+      deck = shuffle([...allCards]);
+      deck.forEach((name, index) => grid.appendChild(createCard(name, index)));
+      renderStatus();
+    }
+
+    themeSelect.addEventListener("change", (event) => {
+      applyTheme(event.target.value);
+    });
+
+    focusSelect.addEventListener("change", (event) => {
+      focusMode = event.target.value;
+      if (picks.length === maxPicks) renderPrediction();
+    });
+
+    resetBtn.addEventListener("click", renderDeck);
+
+    applyTheme("mint");
+    focusMode = focusSelect.value || "general";
+    renderDeck();
+  </script>
+</body>
+</html>
