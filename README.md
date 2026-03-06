@@ -40,6 +40,37 @@ The app lays out the full 78-card deck, lets users draw **exactly 3 cards**, and
 
 - Python 3.9+
 
+## Install
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/manishklach/tarot-predictive-picker.git
+cd tarot-predictive-picker
+```
+
+2. Verify Python:
+
+```bash
+python --version
+```
+
+3. Generate the HTML app:
+
+```bash
+python tarot_picker.py
+```
+
+4. Open the generated file:
+
+- `tarot_picker.html`
+
+Or generate and open directly:
+
+```bash
+python tarot_picker.py --open
+```
+
 ## Quick Start
 
 1. Generate the HTML:
